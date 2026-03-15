@@ -170,6 +170,7 @@ body { background: var(--cream); font-family: 'DM Sans', sans-serif; color: var(
   <div class="tab" onclick="showPage('map',this)">🗺️ Map</div>
   <div class="tab" onclick="showPage('resort',this)">🏝️ Paradise Point</div>
   <div class="tab" onclick="showPage('food',this)">🍽️ Restaurants</div>
+  <div class="tab" onclick="showPage('assistant',this)">🤖 Trip Assistant</div>
 </div>
 
 <!-- ===== ITINERARY ===== -->
@@ -698,5 +699,247 @@ function showPage(id, el) {
   window.scrollTo(0,0);
 }
 </script>
+
+<!-- ===== TRIP ASSISTANT ===== -->
+<div id="assistant" class="page">
+  <div style="max-width:700px;margin:0 auto;padding:24px 20px 40px;display:flex;flex-direction:column;height:calc(100vh - 48px);">
+
+    <!-- Header -->
+    <div style="background:var(--ocean);border-radius:20px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;gap:14px;">
+      <div style="width:44px;height:44px;background:rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0;">🤖</div>
+      <div>
+        <div style="font-family:'Playfair Display',serif;font-size:1.1rem;color:#fff;">San Diego Trip Assistant</div>
+        <div style="font-size:0.78rem;color:var(--sky);margin-top:2px;">Ask me anything about the trip · menus · schedules · what to pack</div>
+      </div>
+    </div>
+
+    <!-- Suggested prompts -->
+    <div id="suggestions" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <button onclick="askQuestion(this)" style="background:#fff;border:1px solid #e8e0d8;border-radius:20px;padding:7px 14px;font-size:0.78rem;color:var(--dark);cursor:pointer;font-family:'DM Sans',sans-serif;">📅 What are we doing today?</button>
+      <button onclick="askQuestion(this)" style="background:#fff;border:1px solid #e8e0d8;border-radius:20px;padding:7px 14px;font-size:0.78rem;color:var(--dark);cursor:pointer;font-family:'DM Sans',sans-serif;">🍝 What's on the menu at Cesarina?</button>
+      <button onclick="askQuestion(this)" style="background:#fff;border:1px solid #e8e0d8;border-radius:20px;padding:7px 14px;font-size:0.78rem;color:var(--dark);cursor:pointer;font-family:'DM Sans',sans-serif;">🦁 Zoo tips for toddlers?</button>
+      <button onclick="askQuestion(this)" style="background:#fff;border:1px solid #e8e0d8;border-radius:20px;padding:7px 14px;font-size:0.78rem;color:var(--dark);cursor:pointer;font-family:'DM Sans',sans-serif;">🎒 What should we pack tomorrow?</button>
+      <button onclick="askQuestion(this)" style="background:#fff;border:1px solid #e8e0d8;border-radius:20px;padding:7px 14px;font-size:0.78rem;color:var(--dark);cursor:pointer;font-family:'DM Sans',sans-serif;">🌮 What's good at City Tacos?</button>
+      <button onclick="askQuestion(this)" style="background:#fff;border:1px solid #e8e0d8;border-radius:20px;padding:7px 14px;font-size:0.78rem;color:var(--dark);cursor:pointer;font-family:'DM Sans',sans-serif;">💤 What time do naps start?</button>
+    </div>
+
+    <!-- Chat window -->
+    <div id="chat-window" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:4px 0;min-height:200px;max-height:55vh;">
+      <div style="background:#fff;border-radius:16px;padding:14px 18px;font-size:0.85rem;line-height:1.6;color:var(--dark);box-shadow:0 1px 8px rgba(42,33,24,0.06);max-width:90%;">
+        👋 Hey! I know everything about this San Diego trip. Ask me what you're doing today, what's on a restaurant's menu, what time to leave, what to pack — anything!
+      </div>
+    </div>
+
+    <!-- Input area -->
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:flex-end;">
+      <textarea id="chat-input" placeholder="Ask anything about the trip..." rows="1"
+        style="flex:1;border:1.5px solid #e0d8ce;border-radius:14px;padding:12px 16px;font-size:0.85rem;font-family:'DM Sans',sans-serif;color:var(--dark);resize:none;outline:none;background:#fff;line-height:1.4;"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"
+        oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+      <button onclick="sendMessage()" id="send-btn"
+        style="background:var(--ocean);color:#fff;border:none;border-radius:14px;padding:12px 18px;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;white-space:nowrap;">
+        Send
+      </button>
+    </div>
+    <div style="text-align:center;font-size:0.7rem;color:var(--muted);margin-top:8px;">Powered by Claude · Responses may not reflect last-minute changes</div>
+  </div>
+</div>
+<!-- end assistant -->
+
+<script>
+const SYSTEM_PROMPT = `You are a friendly and knowledgeable trip assistant for a San Diego family vacation from March 28 to April 1, 2025. You know every detail of the trip and can answer questions conversationally.
+
+THE CREW:
+- Family 1: Caitlin (mom, 4 months pregnant) + Cam (dad) + Lola (2-year-old toddler)
+- Family 2: Ellen (mom) + Max (dad) + Bernard (5 years old) + Rose (2.5-year-old toddler)
+- Staying at: Paradise Point Resort & Spa, 1404 Vacation Rd, San Diego CA 92109, (858) 274-4630
+
+CHECK-IN / CHECK-OUT:
+- Check-in: 4:00pm Saturday March 28 (early check-in can be requested)
+- Check-out: 11:00am Wednesday April 1
+
+NAP SCHEDULE (sacred — all outings planned around this):
+- Lola: 12:00–2:30pm (flex 30 min)
+- Rose: 1:00–3:00pm (flex 45 min)
+- Core blackout window: 12:00–2:30pm daily
+
+FULL ITINERARY:
+
+SATURDAY, MARCH 28 — Arrival Day
+- 8:00am: Depart Burbank (~2.5 hr drive)
+- 10:30am: Arrive Paradise Point, drop bags with bell staff (check-in is 4pm)
+- 11:00am: Explore beach and grounds, let kids burn energy
+- 12:00pm: Nap time. Adults lunch at Tropics Cantina or Tidal
+- 4:00pm: Official check-in, get settled into rooms
+- 4:30pm: Pool time (5 pools on property, heated pool + shallow end)
+- 6:30pm: Dinner at Barefoot Bar & Grill (onsite, waterfront, panoramic Mission Bay views)
+
+SUNDAY, MARCH 29 — Old Town + Cesarina
+- 8:30am: Breakfast onsite (Tidal or Island Market)
+- 9:30am: Drive to Old Town San Diego (~15 min). Open plaza, Mexican architecture, open fields for kids to run, free entry, live musicians
+- 11:00am: Liberty Public Market for lunch (~15 min from Old Town). 20+ food vendors — pizza, tacos, ramen, empanadas, fried chicken, ice cream. Like Grand Central Market. Open 9am-8pm.
+- 12:30pm: Drive back to resort (~15 min), nap time
+- 2:30pm: Free afternoon — paddleboarding, biking, mini golf, pools, beach
+- 6:30pm: Dinner at Cesarina (~15 min drive, 4161 Voltaire St). Michelin Bib Gourmand Italian. Everything made in-house by 3 native Italians. Tableside tiramisu. Bougainvillea patio. Kid friendly. RESERVATION REQUIRED.
+
+MONDAY, MARCH 30 — San Diego Zoo Day
+- 7:30am: Early breakfast at Tidal onsite. Pack snacks and drinks.
+- 8:30am: Arrive at San Diego Zoo at opening. Download the app, scan QR code to reserve timed Panda tickets immediately.
+- First stop: Wildlife Explorers Basecamp (3-acre interactive zone near entrance, climbing, habitats)
+- 10:00am: Polar Bear Plunge — underwater glass viewing, faux polar bear den, Polar Play Area
+- 10:30am: Skyfari Aerial Tram (one way, before midday rush)
+- 11:00am: Elephant Odyssey — fossil dig, elephant tracking maze, kids puzzles
+- 12:00pm: Rolling nap — load toddlers in strollers, hop the Kangaroo Bus (hop-on hop-off, 4 stops). Kids doze while adults stay in zoo.
+- 2:00pm: Koalas + Koala Klimber Playground (Australian Outback)
+- 3:00pm: Panda Ridge (timed entry, quiet zone)
+- 5:30pm: City Tacos OB Playground for dinner (~10 min drive, 4896 Voltaire St). Enclosed turf taco garden, giant yard games (Connect 4, Jenga, chess), 2 fire pits, sail shades. Multiple-year Best Taco in San Diego. Local craft beer.
+
+TUESDAY, MARCH 31 — Balboa Park + Bonfire
+- Morning: Slow morning, pool or beach
+- 10:00am: Balboa Park — Miniature Railroad ($4/person, half-mile loop) + Historic Carousel (built 1910, almost all original animals). NOTE: Railroad typically Sat-Sun only — confirm Tuesday hours ahead of time.
+- 12:00pm: Drive back (~20 min), nap time. Adults lunch at Tidal.
+- 1:00pm: Spa at Paradise Point (Caitlin & Ellen). Reservations required: (858) 490-6350. Spa Happy Hour: $25 off 80-min treatments Mon-Thu.
+- 2:30pm: Pools or beach all afternoon
+- Dusk: Beach bonfire (book with resort concierge in advance)
+- 6:00pm: Dinner at Barefoot Bar & Grill onsite
+
+WEDNESDAY, APRIL 1 — Departure
+- Morning: Last pool or beach session
+- 11:00am: Check out (late check-out available on request)
+- Drive home to Burbank (~2.5 hrs)
+
+RESTAURANTS:
+1. Barefoot Bar & Grill (onsite) — waterfront, all-day, kids meals, panoramic Mission Bay views
+2. Tidal (onsite) — nicer seafood restaurant, breakfast + dinner
+3. Tropics Cantina (onsite, poolside) — burgers, hot dogs, wraps, margaritas, seasonal
+4. Island Market (onsite) — quick grabs, coffee
+5. Liberty Public Market (2820 Historic Decatur Rd, ~15 min) — 20+ vendors, open 9am-8pm
+6. Cesarina (4161 Voltaire St, ~15 min) — Michelin Bib Gourmand Italian, tableside tiramisu, reserve patio
+7. City Tacos OB Playground (4896 Voltaire St, ~10 min) — enclosed turf, yard games, fire pits, best tacos in SD
+
+PARADISE POINT RESORT AMENITIES:
+- 5 pools: Main Pool (poolside bar), Lagoon Pool (family), Adult Lagoon Pool (adults only), Meadow Pool, Waterfall Pool (hidden gem in Hibiscus Village)
+- 5 hot tubs (one per pool area)
+- Marina: kayaks, paddleboards, jet skis (21+ driver), pontoon boats, sailing, 60-min Mission Bay boat tour. Action Sport Rentals: (858) 581-5939, open 9am-6pm
+- 18-hole putting golf, Surrey quadracycle, beach cruiser bikes, tennis (5 courts), basketball, bocce ball, horseshoes, ping pong, croquet
+- Spa: massages, facials, body treatments, nail services, Mom & Me packages. (858) 490-6350
+- Beach bonfires (book with concierge)
+- Poolside movie nights (seasonal)
+- 1 mile of sandy beach on Mission Bay
+- Observation tower (70ft, 360° views, free)
+
+DECISIONS STILL NEEDED:
+1. Zoo tickets — buy at zoo.sandiegozoo.org/tickets
+2. Cesarina reservation — exploretock.com/cesarina
+3. Beach bonfire — call resort (858) 274-4630
+4. Spa booking — (858) 490-6350
+5. Marina watersports — call (858) 581-5939
+
+When asked "what are we doing today" or similar, ask what today's date is if you don't know, or use context clues. Always be warm, concise, and helpful. If asked about restaurant menus, you can describe what you know and suggest they check the restaurant's website or call ahead for current menus. Keep responses brief and friendly — this is a fun family trip!`;
+let conversationHistory = [];
+
+function appendMessage(role, text) {
+  const chatWindow = document.getElementById('chat-window');
+  const div = document.createElement('div');
+  const isUser = role === 'user';
+  div.style.cssText = `
+    background: ${isUser ? 'var(--ocean)' : '#fff'};
+    color: ${isUser ? '#fff' : 'var(--dark)'};
+    border-radius: 16px;
+    padding: 12px 18px;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    max-width: 88%;
+    align-self: ${isUser ? 'flex-end' : 'flex-start'};
+    box-shadow: 0 1px 8px rgba(42,33,24,0.06);
+    white-space: pre-wrap;
+    font-family: 'DM Sans', sans-serif;
+  `;
+  div.textContent = text;
+  chatWindow.appendChild(div);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+  return div;
+}
+
+function appendTyping() {
+  const chatWindow = document.getElementById('chat-window');
+  const div = document.createElement('div');
+  div.id = 'typing-indicator';
+  div.style.cssText = `
+    background: #fff;
+    border-radius: 16px;
+    padding: 12px 18px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    align-self: flex-start;
+    box-shadow: 0 1px 8px rgba(42,33,24,0.06);
+    font-family: 'DM Sans', sans-serif;
+  `;
+  div.textContent = '✦ thinking...';
+  chatWindow.appendChild(div);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Hide suggestions after first message
+  document.getElementById('suggestions').style.display = 'none';
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+
+  appendMessage('user', text);
+  conversationHistory.push({ role: 'user', content: text });
+
+  appendTyping();
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: conversationHistory
+      })
+    });
+
+    const data = await response.json();
+    removeTyping();
+
+    const reply = data.content && data.content[0] && data.content[0].text
+      ? data.content[0].text
+      : 'Sorry, I had trouble responding. Try again!';
+
+    conversationHistory.push({ role: 'assistant', content: reply });
+    appendMessage('assistant', reply);
+  } catch(err) {
+    removeTyping();
+    appendMessage('assistant', 'Oops — something went wrong. Check your connection and try again!');
+  }
+
+  document.getElementById('send-btn').disabled = false;
+  input.focus();
+}
+
+function askQuestion(btn) {
+  const input = document.getElementById('chat-input');
+  input.value = btn.textContent.replace(/^[\S]+ /, '').trim();
+  // strip emoji from start
+  input.value = btn.textContent.replace(/^\p{Emoji}+\s*/u, '').trim();
+  sendMessage();
+}
+</script>
+
 </body>
 </html>
